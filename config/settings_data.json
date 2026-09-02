@@ -211,15 +211,6 @@
           "home_featured_products_row_num": 2
         }
       },
-      "featured_products_HxTxRh": {
-        "type": "featured-products",
-        "name": "Pencil Holders",
-        "settings": {
-          "title": "Pencil Holders",
-          "home_page_featured_products": "pencil-holders",
-          "home_featured_products_row_num": 2
-        }
-      },
       "featured_products_cYLEdi": {
         "type": "featured-products",
         "name": "Vases",
@@ -267,7 +258,6 @@
       "1663443183895964dd",
       "featured_products_cYLEdi",
       "163822425698dd87af",
-      "featured_products_HxTxRh",
       "featured_products_Ch4N6N",
       "featured-products",
       "1638224237730a3bf5",
