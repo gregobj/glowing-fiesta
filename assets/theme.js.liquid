@@ -827,6 +827,9 @@ theme.Product = (function() {
       ),
       $productSinglePhotos: $('.product-single__photos', this.$container),
       $productThumbs: $('.product-single__thumbnail', this.$container),
+      $variantPreviews: $('[data-variant-previews]', this.$container),
+      $variantPreviewButtons: $('[data-variant-id]', this.$container),
+      $selectedVariantTitle: $('[data-selected-variant-title]', this.$container),
       $productImageGallery: $('.gallery__item', this.$container),
       $productFullDetails: $('.product-single__full-details', this.$container),
       $tabTrigger: $('.tab-switch__trigger', this.$container),
@@ -847,7 +850,7 @@ theme.Product = (function() {
     this.extraTabContent = $container.data('extra-tab-content');
     this.cartEnableAjax = $container.data('cart-enable-ajax');
     this.enableHistoryState = $container.data('enable-history-state') || false;
-    this.variantImageGroups = $container.data('variant-image-groups') === true;
+    this.showAllImages = $container.data('gallery-mode') === 'all';
 
     this.productSingleObject = JSON.parse(
       document.getElementById('ProductJson-' + this.sectionId).innerHTML
@@ -860,6 +863,7 @@ theme.Product = (function() {
     init: function() {
       this.stringOverrides();
       this.initProductVariant();
+      this.initVariantPreviews();
       this.initBreakpoints();
       this.initThumbnails();
 
@@ -941,14 +945,10 @@ theme.Product = (function() {
     productImageGallery: function() {
       if (!this.selectors.$productImageGallery.length) return;
 
-      var self = this;
-      var $galleryItems = this.selectors.$productImageGallery.filter(function() {
-        return !self.activeImageIds ||
-          $.inArray($(this).attr('data-image-id'), self.activeImageIds) !== -1;
-      });
+      var $galleryItems = this.selectors.$productImageGallery;
 
-      // Rebuild the lightbox collection as well as the visible thumbnails.
-      // Namespaced handlers prevent duplicate opens after variant changes.
+      // Keep all product images browsable. Namespaced handlers prevent
+      // duplicate opens when the desktop lightbox is initialized again.
       this.selectors.$productImageGallery.off('click.magnificPopup');
       this.selectors.$productSinglePhotos.off('click.productGallery');
       this.galleryInitialized = true;
@@ -1000,6 +1000,20 @@ theme.Product = (function() {
         var newImageId = $(this).attr('data-image-id');
         self._switchImage(newImageId);
       });
+    },
+
+    initVariantPreviews: function() {
+      if (!this.selectors.$variantPreviewButtons.length ||
+          !this.optionSelector || !this.optionSelector.selectVariant) return;
+
+      var self = this;
+      this.selectors.$variantPreviewButtons.on('click.variantPreview', function() {
+        // Use Shopify's selector so price, availability, URL and cart ID
+        // follow the same path as the original dropdown, including multi-option products.
+        self.optionSelector.selectVariant($(this).attr('data-variant-id'));
+      });
+      this.selectors.$variantPreviews.removeClass('hidden');
+      this.$container.addClass('variant-previews-ready');
     },
 
     initProductVariant: function() {
@@ -1064,13 +1078,17 @@ theme.Product = (function() {
       var self = this;
       var variant = options.variant;
 
+      this.selectors.$variantPreviewButtons.attr('aria-pressed', 'false');
+      this.selectors.$selectedVariantTitle.text(variant ? variant.title : theme.strings.unavailable);
+
       if (variant) {
-        if (this.variantImageGroups) {
-          this._filterVariantImages(variant);
-        } else if (variant.featured_image) {
-          // Keep the original image behavior for other product sections.
+        this.selectors.$variantPreviewButtons
+          .filter('[data-variant-id="' + variant.id + '"]').attr('aria-pressed', 'true');
+        if (variant.featured_image) {
           var newImg = variant.featured_image;
           self._switchImage(newImg.id);
+        } else if (this.showAllImages) {
+          self._switchImage(this.selectors.$productImageWrappers.first().attr('data-image-id'));
         }
 
         // Update the product price
@@ -1198,48 +1216,7 @@ theme.Product = (function() {
       });
     },
 
-    _filterVariantImages: function(variant) {
-      var self = this;
-      var groupId = variant.featured_image ? String(variant.featured_image.id) : '';
-      var $images = this.selectors.$productImageWrappers;
-      var $allowedImages = $images.filter(function() {
-        var imageGroupId = $(this).attr('data-variant-image-id');
-        return !imageGroupId || imageGroupId === groupId;
-      });
-
-      // An unassigned variant uses common images. If none exist, retain the
-      // original gallery instead of leaving the product without any photos.
-      if (!$allowedImages.length && !groupId) {
-        $allowedImages = $images;
-      }
-
-      this.activeImageIds = $allowedImages.map(function() {
-        return $(this).attr('data-image-id');
-      }).get();
-
-      this.selectors.$productThumbs.each(function() {
-        var isAllowed = $.inArray($(this).attr('data-image-id'), self.activeImageIds) !== -1;
-        $(this).closest('li').toggleClass('hidden', !isAllowed);
-      });
-      this.selectors.$productThumbs.closest('ul').toggleClass('hidden', this.activeImageIds.length < 2);
-
-      var imageId = $.inArray(groupId, this.activeImageIds) !== -1
-        ? groupId
-        : this.activeImageIds[0];
-      if (imageId) {
-        this._switchImage(imageId);
-      } else {
-        $images.addClass('hidden');
-      }
-
-      if (this.galleryInitialized && this.zoomType === 'lightbox' && !theme.variables.bpSmall) {
-        this.productImageGallery();
-      }
-    },
-
     _switchImage: function(imageId) {
-      if (this.activeImageIds && $.inArray(String(imageId), this.activeImageIds) === -1) return;
-
       var $newImage = $(
         this.selectors.$productImageWrappers.selector +
           "[data-image-id='" +
@@ -1261,6 +1238,21 @@ theme.Product = (function() {
       $otherImages.addClass('hidden');
       this.selectors.$productThumbs.removeAttr('aria-current')
         .filter('[data-image-id="' + imageId + '"]').attr('aria-current', 'true');
+
+      // Scroll only the thumbnail rail, never the surrounding product page.
+      if (this.showAllImages) {
+        var thumbnail = this.selectors.$productThumbs
+          .filter('[data-image-id="' + imageId + '"]').closest('li')[0];
+        if (thumbnail) {
+          var rail = thumbnail.parentNode;
+          var itemRect = thumbnail.getBoundingClientRect();
+          var railRect = rail.getBoundingClientRect();
+          if (itemRect.top < railRect.top) rail.scrollTop += itemRect.top - railRect.top;
+          else if (itemRect.bottom > railRect.bottom) rail.scrollTop += itemRect.bottom - railRect.bottom;
+          if (itemRect.left < railRect.left) rail.scrollLeft += itemRect.left - railRect.left;
+          else if (itemRect.right > railRect.right) rail.scrollLeft += itemRect.right - railRect.right;
+        }
+      }
     },
 
     _productImageZoom: function() {
@@ -1326,15 +1318,16 @@ theme.Product = (function() {
       })
       .insertAfter($addToCartBtn);
 
-    $('.single-option-selector, [name="quantity"]').bind('click', function() {
-      $(this)
-        .closest('form')
+    $addToCartBtn.closest('[data-section-type="product-template"]')
+      .find('.single-option-selector, [data-variant-id], [name="quantity"]')
+      .off('click.cartNotification').on('click.cartNotification', function() {
+      var $form = $addToCartBtn.closest('form');
+      $form
         .find('.btn--view-cart, .product-single__notification, .errors')
         .remove();
-      $(this)
-        .closest('form')
+      $form
         .find('.btn--unflipped')
-        .removeClass('.btn--unflipped')
+        .removeClass('btn--unflipped')
         .show();
     });
   }
