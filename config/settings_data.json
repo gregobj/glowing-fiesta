@@ -193,15 +193,6 @@
           "home_featured_products_row_num": 2
         }
       },
-      "16503006628994122b": {
-        "type": "featured-products",
-        "name": "Coasters & Trivets",
-        "settings": {
-          "title": "Coasters & Trivets",
-          "home_page_featured_products": "coasters-trivets",
-          "home_featured_products_row_num": 2
-        }
-      },
       "1663443183895964dd": {
         "type": "featured-products",
         "name": "Sculptures",
@@ -277,7 +268,6 @@
       "featured_products_cYLEdi",
       "163822425698dd87af",
       "featured_products_HxTxRh",
-      "16503006628994122b",
       "featured_products_Ch4N6N",
       "featured-products",
       "1638224237730a3bf5",
